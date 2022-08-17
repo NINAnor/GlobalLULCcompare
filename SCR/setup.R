@@ -11,11 +11,13 @@ library(raster)
 library(ggmap)
 library(caret)
 
+# Global ggplot theme
 theme_set(theme_bw()+
             theme(
               panel.grid = element_blank()
             ))
 
+# Function to read multiple CSV files that are output from GEE
 readMultiFiles <- function(directory){
   
   files <- list.files(directory, pattern='*.csv', full.names=TRUE)
@@ -24,6 +26,8 @@ readMultiFiles <- function(directory){
   return (raw)
   
 }
+
+# Function to recode land cover classes from numeric to character
 recodeLcClasses <- function(lc){
   output <-  recode_factor(factor(lc), `1` = 'Built area',
                            `2` = 'Crops',
@@ -37,6 +41,7 @@ recodeLcClasses <- function(lc){
   return (output)
 }
 
+# Function to recode Biomes to a simplified typology
 recodeBiomes <- function(biome){
   output <- recode_factor(factor(biome), 
                           "Temperate Broadleaf & Mixed Forests" = 'Temp. bor. Forests',
@@ -56,27 +61,7 @@ recodeBiomes <- function(biome){
   return (output)
 }
 
-pal <- c( "#2E214D",
-          "#4B3B66",
-          "#6E5480",
-          "#926390",
-          "#B26795",
-          "#D17BA5",
-          "#D495B8",
-          "#D4ADC9",
-          "#DBC9DC",
-          "#E6E6F0")
-pal <- c("#05598C",
-         "#296284",
-         "#4A7283",
-         "#6F878D",
-         "#929C96",
-         "#ABAD96",
-         "#BAB98D",
-         "#C7C684",
-         "#E0E08E",
-         "#FEFEB2")
-
+# Visualization lookup for land cover maps
 lcVizLookup <- tibble(
   colors = c('#C4281B','#E49635', '#A59B8F','#88B053', '#DFC35A','#397D49','#f2bac1','#0002f6','#6fdbde'),
   lcLabs = c("Built area", #1
@@ -90,7 +75,10 @@ lcVizLookup <- tibble(
              "Snow & ice" ))
 
 #### Create hex grid for GEE -------------------------------------------------------------------
-
+# This is an equal area hexagonal grid that will be uploaded to GEE and used to calculate 
+# land cover areas for the three global LULC products
+# After creating this in R I realized that you can do it in GEE. See this blogpost if you are interested:
+# https://gorelick.medium.com/more-buffered-samples-with-hex-cells-b9a9bd36120d
 dggs  <- dgconstruct(area=75000, metric=FALSE, resround='down')
 class(dggs)
 
@@ -112,7 +100,7 @@ ggplot() +
   geom_sf(data = bounds, fill=NA, color='red') +
   coord_sf()
 
-# Write out grid to shapefile for upload
+# Write out grid to shapefile for upload to GEE asset
 grid %>%
   mutate(long = unlist(map(st_centroid(grid)$geometry,1)),
          lat = unlist(map(st_centroid(grid)$geometry,2))) %>%
