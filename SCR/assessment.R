@@ -1,12 +1,12 @@
 #### Import datasets -------------------------------------------------------------------------------
 
-continents <- ne_countries(scale = "medium", returnclass = "sf")   %>%
-  dplyr::select(iso_a3, economy, continent) 
-
+# Spatial data for country boundaries used in global maps
 countries <- ne_countries(scale = "medium", returnclass = "sf") 
 
+# Hex grid generated in setup.R file
 hexGrid <- st_read('./DATA/For_GEE/equal_area_grid.shp')
 
+# Site-specific metadata for validation tile locations - generated in GEE
 val_global_metadata <- read_csv('./DATA/From_GEE/continents_global_val.csv') %>% dplyr::select(-`system:index`,-'.geo') %>%
   left_join(read_csv('./DATA/From_GEE/ecoregion_global_val.csv') %>% dplyr::select(-`system:index`,-'.geo')) %>%
   left_join(read_csv('./DATA/From_GEE/hsl_global_val.csv') %>% dplyr::select(-`system:index`,-'.geo')) %>%
@@ -17,8 +17,8 @@ val_global_metadata <- read_csv('./DATA/From_GEE/continents_global_val.csv') %>%
          Lat = as.numeric(substring(Lat,1, nchar(Lat)-9))) %>%
   mutate(BIOME_NAME = recodeBiomes(BIOME_NAME)) %>%
   drop_na(BIOME_NAME)
-unique(val_global_metadata$BIOME_NAME)
 
+# The pixel values for DW annotated validation tiles and 3 global LULC products
 val_global <- read_csv('./DATA/From_GEE/validation_global_DW_tiles.csv') %>%
   mutate(dw_id = str_replace_all(`system:index`, 'p', '.'))%>% 
   mutate(dw_id = substring(dw_id,
@@ -28,7 +28,17 @@ val_global <- read_csv('./DATA/From_GEE/validation_global_DW_tiles.csv') %>%
   mutate_at(vars(dw, wc, esri, groundTruth), recodeLcClasses)
 val_global
 
+# The pixel values for DW annotated validation tiles and DW median and mean composites - supplementary
+val_global_supp <- read_csv('./DATA/From_GEE/validation_global_DW_tiles_supplementary.csv') %>%
+  mutate(dw_id = str_replace_all(`system:index`, 'p', '.'))%>% 
+  mutate(dw_id = substring(dw_id,
+                           1, 
+                           nchar(dw_id) - (nchar(str_split(dw_id, '_') %>% map_chr(., 5)) + 1))) %>%
+  dplyr::select(-`system:index`,-'.geo')%>%
+  mutate_at(vars(dwMeanCat, dwMedianCat, groundTruth), recodeLcClasses)
+val_global_supp
 
+# Site-specific metadata for LUCAS point locations - generated in GEE 
 val_regional_metadata <- read_csv('./DATA/From_GEE/hsl_regional_val.csv') %>% 
   left_join(read_csv('./DATA/From_GEE/ecoregion_regional_val.csv') %>% dplyr::select(-`system:index`,-'.geo', -lc1)) %>%
   mutate(Lat = as.numeric(str_split(str_split(str_split(`.geo`,'\\[') %>% map_chr(., 2), ',') %>% map_chr(., 2), '\\]') %>% map_chr(., 1)),
@@ -39,11 +49,21 @@ val_regional_metadata <- read_csv('./DATA/From_GEE/hsl_regional_val.csv') %>%
   mutate(BIOME_NAME = recodeBiomes(BIOME_NAME)) %>%
   drop_na(BIOME_NAME)
 
+# The pixel values for LUCAS points for 3 global LULC products
 val_regional <- readMultiFiles('./DATA/From_GEE/validation_european_LUCAS_pts/') %>%
   mutate(groundTruth = lcNum) %>%
   dplyr::select(-`system:index`,-'.geo', -lcNum, -lc1)%>%
   mutate_at(vars(dw, wc, esri, groundTruth), recodeLcClasses)
+val_regional
 
+# The pixel values for LUCAS points for DW median and mean composites - supplementary 
+val_regional_supp <- readMultiFiles('./DATA/From_GEE/validation_european_LUCAS_pts_supplementary/') %>%
+  mutate(groundTruth = lcNum) %>%
+  dplyr::select(-`system:index`,-'.geo', -lcNum, -lc1)%>%
+  mutate_at(vars(dwMeanCat, dwMedianCat, groundTruth), recodeLcClasses)
+val_regional_supp
+
+# Land cover areas for hex grid - convert to percentages
 lc_areas <- readMultiFiles('./DATA/From_GEE/lc_areas_grid/')%>% 
   distinct(.keep_all=T) %>%
   dplyr::select(-`system:index`,-'.geo', -first) %>%
@@ -55,6 +75,7 @@ lc_areas <- readMultiFiles('./DATA/From_GEE/lc_areas_grid/')%>%
   pivot_wider(names_from=key, values_from=percCov) %>%
   ungroup()
 
+# Import global and local raster files used to generate map figures
 dwGlobal <- raster('./DATA/From_GEE/dynamicworld_global.tif')
 dwLocal <- raster('./DATA/From_GEE/dynamicworld_local.tif')
 dwLocal2 <- raster('./DATA/From_GEE/dynamicworld_local_2.tif')
@@ -78,7 +99,7 @@ rastLocal <- dwLocal
 rastLocal2 <- dwLocal2
 
 # Get Google Maps API key registered. 
-# Need to save this in  a txt file in a directory called Private
+# Need to save this key as a string in  a txt file in a directory called Private
 key <- read.delim('./Private/key.txt', header=F, sep=' ')
 your_gmaps_API_key <- key$V1
 register_google(key = your_gmaps_API_key)
@@ -91,6 +112,7 @@ ggmap(gmap)
 gmap2 <- get_googlemap(center = getCent(rastLocal2), zoom = 13, maptype = "satellite")
 ggmap(gmap2)
 
+# Convert raster to dataframe so can plot with ggplot
 rasterToDf <- function(raster){
   names(raster) <- 'lc'
   lcSpat <- as.data.frame(raster, xy = TRUE) %>%
@@ -111,6 +133,7 @@ rasterToDf <- function(raster){
   return (lcSpat)
 }
 
+# ggplot theme setting
 theme_1 <- theme(
   axis.text = element_blank(),
   axis.title = element_blank(),
@@ -123,8 +146,10 @@ theme_legend_1 <- theme(legend.key.size = unit(0.25, 'cm'), #change legend key s
                         legend.key.width = unit(0.25, 'cm'), #change legend key width
                         legend.title = element_text(size=6), #change legend title font size
                         legend.text = element_text(size=6)) #change legend text font size
+# for debugging
 label <- 'test'
 
+# Make global plots
 makeGlobLocLCmap <- function(rastGlobal, rastLocal, rastLocal2, label, leg){
   
   lcSpatLocal <- rasterToDf(rastLocal)
@@ -201,7 +226,7 @@ makeGlobLocLCmap <- function(rastGlobal, rastLocal, rastLocal2, label, leg){
 dev.off()
 
 gm1 <- makeGlobLocLCmap(dwGlobal, dwLocal,dwLocal2, 'A)', TRUE)
-gm2 <- makeGlobLocLCmap(wcGlobal, wcLocal,wcLocal2,  'B', FALSE)
+gm2 <- makeGlobLocLCmap(wcGlobal, wcLocal,wcLocal2,  'B)', FALSE)
 gm3 <- makeGlobLocLCmap(esriGlobal, esriLocal,esriLocal2, 'C)', FALSE)
 
 fig1 <- grid.arrange(gm1, gm2, gm3, nrow=3, heights=c(1,1,1), padding = unit(0, "line"), newpage = T) 
@@ -220,6 +245,13 @@ theme_2 <- theme(
   plot.margin=grid::unit(c(0,0,0,0), "mm")
 )
 
+theme_2_inset <- theme(axis.title.y = element_blank(),
+                       axis.text = element_text(size=4),
+                       axis.title.x = element_text(size=4),
+                       panel.background = element_rect(fill = 'transparent'),
+                       panel.border = element_rect(size = 0.1,fill = NA),
+                       plot.background=element_rect(fill = 'transparent', color= 'transparent'))
+
 val_global_metadata_spat <- val_global_metadata %>%
   st_as_sf(coords=c('Lon','Lat'), crs=4326) 
 val_global_metadata_spat_trans <-val_global_metadata_spat %>%
@@ -227,6 +259,17 @@ val_global_metadata_spat_trans <-val_global_metadata_spat %>%
   mutate(Lon = unlist(map(.$geometry,1)),
          Lat = unlist(map(.$geometry,2)))
 
+
+m1Inset <- val_global %>%
+  group_by(groundTruth) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(y=groundTruth, x=n)) +
+  geom_bar(stat='identity') +
+  labs(x='Number samples') +
+  theme_bw() +
+  scale_x_continuous(n.breaks=4) +
+  theme_2_inset
+m1Inset
 
 m1 <- val_global_metadata_spat %>%
   ggplot()  +
@@ -236,12 +279,27 @@ m1 <- val_global_metadata_spat %>%
           size = 0.09,
           alpha=0.9) +
   geom_sf(shape=21, stroke=0.8, size=1, color='#f88077')+
-  coord_sf( expand = FALSE,crs = 4326)+
+  #coord_sf( expand = FALSE,crs = 4326)+
   xlim(min(val_global_metadata_spat_trans$Lon),max(val_global_metadata_spat_trans$Lon)) +
   ylim(min(val_global_metadata_spat_trans$Lat),max(val_global_metadata_spat_trans$Lat)) +
   labs(title = 'A) Global validation tiles') + 
-  theme_2
+  theme_2 +
+  annotation_custom(
+    ggplotGrob(m1Inset ),
+    xmin = -180, xmax = -95, 
+    ymin = -46, ymax = 10)
 m1
+
+m2Inset <- val_regional %>%
+  group_by(groundTruth) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(y=groundTruth, x=n)) +
+  geom_bar(stat='identity') +
+  labs(x='Number samples') +
+  scale_x_continuous(n.breaks=4, labels = function(x) format(x, scientific = TRUE)) +
+  theme_bw() +
+  theme_2_inset
+
 m2 <- val_regional_metadata %>%
   sample_n(50000) %>%
   ggplot()  +
@@ -252,17 +310,24 @@ m2 <- val_regional_metadata %>%
           alpha=0.9) +
   geom_point(aes(x = Lon, y = Lat), shape='.', color='#f88077')+
   coord_sf( expand = FALSE)+
-  xlim(min(val_regional_metadata$Lon),max(val_regional_metadata$Lon)) +
+  xlim(-12,max(val_regional_metadata$Lon)) +
   ylim(min(val_regional_metadata$Lat),max(val_regional_metadata$Lat)) +
   labs(title = 'B) Regional validation points') + 
-  theme_2
+  theme_2 +
+  annotation_custom(
+    ggplotGrob(m2Inset ),
+    xmin = -12, xmax = 12, 
+    ymin = 58, ymax = 70)
 m2
 fig2 <- grid.arrange(m1,m2, nrow=1, widths=c(3,1), padding = unit(0, "line"), newpage = T) 
-ggsave("fig2.png", fig1, width = 35, height=10, units='cm')
+ggsave("fig2.png", fig2, width = 35, height=10, units='cm')
 
 
 #### Figure 3 - spatial correspondence -----------------------------------------------------------------
 lc_areas 
+
+varName <- "C"
+title <- "A) Built area"
 
 makeSpatCorrSubPlot <- function(varName, title){
   
@@ -270,7 +335,22 @@ makeSpatCorrSubPlot <- function(varName, title){
     mutate(select = lc_areas[[varName]]) %>%
     dplyr::select(select, lc, seqnum) %>%
     pivot_wider(names_from=lc, values_from=select) %>%
-    drop_na()
+    drop_na() %>%
+    mutate(lcSum = dw+wc+esri,
+           DWprop = dw/lcSum,
+           WCprop = wc/lcSum,
+           EsriProp = esri/lcSum,
+           correspond = ifelse(DWprop > 0.40 | WCprop > 0.40 | EsriProp > 0.40, 'weak', 'strong'),
+           # grid cells with zero cover for all 3 products give NA, but actually represent stron correspondence
+           correspond = ifelse(is.na(correspond), 'strong', correspond))
+  #datSub %>% ggplot(aes(x=correspond)) + geom_bar()
+  
+  # View(datSub %>%
+  #   gather(key, val, DWprop:EsriProp) %>%
+  #   group_by(seqnum, correspond) %>%
+  #   summarise(min = min(val),
+  #             max = max(val)) %>%
+  #   mutate(diff = max-min))
   
   datSubSum <- datSub %>%
     summarise_at(vars(dw, wc, esri), mean) %>%
@@ -301,7 +381,7 @@ makeSpatCorrSubPlot <- function(varName, title){
   #  theme(text = element_text(size=7))
   
   datSub$rgb <- tric$rgb
-  DemoTricolore()
+  #DemoTricolore()
   datMainToMap <- hexGrid %>%
     left_join(datSub, by = 'seqnum') %>%
     filter(!is.na(dw)) %>%
@@ -309,6 +389,9 @@ makeSpatCorrSubPlot <- function(varName, title){
            p99 = quantile(meanLc, c(0.99))) %>%
     mutate(meanLc = ifelse(meanLc > p99, p99, meanLc),
            meanLc= BBmisc::normalize(meanLc, method='range'))
+  
+  strongCorrespondToMap <- datMainToMap %>%
+    filter(correspond == 'strong')
   
   theme_3 <- theme(
     axis.text = element_blank(),
@@ -321,6 +404,7 @@ makeSpatCorrSubPlot <- function(varName, title){
   mapSub <- datMainToMap %>%
     ggplot() +
     geom_sf(color=NA, aes(fill=rgb, alpha=meanLc)) +
+    geom_sf(data = strongCorrespondToMap, fill=NA, inherit.aes=F, size=0.08)+
     geom_sf(data = countries, fill=NA, inherit.aes=F, size=0.1) + 
     scale_fill_identity()+
     coord_sf( expand = FALSE)+
@@ -355,21 +439,23 @@ cm9 <- makeSpatCorrSubPlot("SI", "I) Snow & ice")
 fig3 <- grid.arrange(cm1, cm2, cm3,
                      cm4, cm5, cm6,
                      cm7, cm8, cm9, nrow=3, heights=c(1,1,1), padding = unit(0, "line"), newpage = T) 
-ggsave("fig3.png", fig3, width = 35, height=17, units='cm')
+ggsave("fig3_.png", fig3, width = 35, height=17, units='cm')
 dev.off()
 
 
 
-#### Figure 4&5 - accuracy global -----------------------------------------------------------------
+#### Figure 4&5  - accuracy global -----------------------------------------------------------------
 val_global 
 val_regional
 colSums(is.na(val_global))
 colSums(is.na(val_regional))
 
+# Plot to check the number per biome and continent
 val_global_metadata %>% ggplot(aes(x=BIOME_NAME)) + geom_bar() + coord_flip()
 val_regional_metadata %>% ggplot(aes(x=BIOME_NAME)) + geom_bar() + coord_flip()
 val_global_metadata %>% ggplot(aes(x=continent)) + geom_bar() + coord_flip()
 
+# Functiont to get accuracy metrics
 getDataAcc <- function(dataPred, dataTrue, name){
   cm <- confusionMatrix(dataPred,dataTrue)
   
@@ -382,8 +468,8 @@ getDataAcc <- function(dataPred, dataTrue, name){
     mutate_at(vars(Recall, Precision, Overall), function(x)x*100)
   return (acc)
 }
-dev.off()
 
+# Get global accuracy scores
 valOut <- getDataAcc(val_global$dw, val_global$groundTruth) %>% mutate(product = 'Dynamic World') %>%
   bind_rows(getDataAcc(val_global$wc, val_global$groundTruth) %>% mutate(product = 'World Cover') )%>%
   bind_rows(getDataAcc(val_global$esri, val_global$groundTruth) %>% mutate(product = 'Esri Land Cover') ) %>%
@@ -391,6 +477,11 @@ valOut <- getDataAcc(val_global$dw, val_global$groundTruth) %>% mutate(product =
          typen = length(val_global$dw),
          cat = 'Global') 
 
+# View balanced accuracies for each class
+View(valOut %>% group_by(LC) %>% summarise_at(vars(Precision, Recall), mean) %>%
+       mutate(balanced = (Precision + Recall)/2))
+
+# Get global accuracy scores per continent
 for (i in unique(val_global_metadata$continent)){
   if (i %in% c('Oceania')) next
   
@@ -415,6 +506,7 @@ val_global %>%
   group_by(BIOME_NAME) %>%
   summarise(n=n())
 
+# Get global accuracy scores per biome
 for (i in unique(val_global_metadata$BIOME_NAME)){
   
   subVal <- val_global %>%
@@ -432,6 +524,7 @@ for (i in unique(val_global_metadata$BIOME_NAME)){
     bind_rows(subValOut)
 }
 
+# Get global accuracy scores per settlement type
 for (i in unique(val_global_metadata$hsl)){
   
   subVal <- val_global %>%
@@ -540,6 +633,8 @@ fig5
 ggsave("fig5.png", fig5, width = 26, height=10, units='cm')
 
 
+
+
 #### Figure 6 - accuracy regional - Europe -------------------------------------------------------
 
 valOut <- getDataAcc(val_regional$dw, val_regional$groundTruth) %>% mutate(product = 'Dynamic World') %>%
@@ -632,6 +727,61 @@ ggsave("fig6.png", fig6, width = 26, height=14, units='cm')
 
 
 
+#### Supplementary figure 1 - accuracy global and regional DW composite types-------------------------
+
+
+valOut_supp <- getDataAcc(val_global$dw, val_global$groundTruth) %>% mutate(product = 'Dynamic World mode') %>%
+  bind_rows(getDataAcc(val_global_supp$dwMeanCat, val_global_supp$groundTruth) %>% mutate(product = 'Dynamic World mean') )%>%
+  bind_rows(getDataAcc(val_global_supp$dwMedianCat, val_global_supp$groundTruth) %>% mutate(product = 'Dynamic World median') ) %>%
+  mutate(type = 'Global',
+         typen = length(val_global_supp$dwMeanCat),
+         cat = 'Global')%>%
+  bind_rows(getDataAcc(val_regional$dw, val_regional$groundTruth) %>% mutate(product = 'Dynamic World mode') %>%
+              bind_rows(getDataAcc(val_regional_supp$dwMeanCat, val_regional_supp$groundTruth) %>% mutate(product = 'Dynamic World mean') )%>%
+              bind_rows(getDataAcc(val_regional_supp$dwMedianCat, val_regional_supp$groundTruth) %>% mutate(product = 'Dynamic World median') ) %>%
+              mutate(type = 'European',
+                     typen = length(val_regional_supp$dwMeanCat),
+                     cat = 'European') 
+  )
+
+width <- 0.6
+textSize <- 1.75
+
+figS1 <- valOut_supp %>%
+  mutate(type = paste0(type, ' (n=', round(typen/1000), 'k)')) %>%
+  mutate(Rpos = ifelse(Recall < Precision, Recall-12, Recall+12),
+         Ppos = ifelse(Precision < Recall, Precision-12, Precision+12)) %>%
+  mutate(LC = factor(LC, levels = c(lcVizLookup$lcLabs, 'Overall'))) %>%
+  mutate(cat = factor(cat, levels = c('European', 'Biomes', 'Settlement' )))%>%
+  ggplot(aes(y=type)) +
+  geom_linerange(aes(xmin=Precision, xmax=Recall, color=product), 
+                 position=position_dodge(width=width)) +
+  geom_point(aes(x = Recall, color=product), shape=1, position=position_dodge(width=width)) +
+  geom_point(aes(x=Precision, color=product), shape=4, position=position_dodge(width=width)) +
+  geom_point(aes(x=Overall,color=product), shape=16, position=position_dodge(width=width)) +
+  geom_text(aes(x=Rpos, label=round(Recall,0), group=product), color='black', size=textSize, position=position_dodge(width=width))+
+  geom_text(aes(x=Ppos, label=round(Precision,0), group=product), color='black', size=textSize, position=position_dodge(width=width))+
+  geom_text(aes(x=Overall-12, label=round(Overall,0), group=product), color='black', size=textSize, position=position_dodge(width=width))+
+  labs(x = 'Accuracy (%)', color='') +
+  #geom_point(data=dummyData, aes(x = x, shape=shape)) +
+  scale_shape_manual(values = c(16,4,1), name = 'Accuracy') +
+  #scale_color_manual(values = c('#efc500', '#ff6fff', '#00f5f3'), name='') +
+  facet_grid(.~LC,space='free_y', scales='free_y') +
+  theme(strip.background =element_rect(fill="white"),
+        strip.text = element_text(size=7),
+        legend.title = element_text(size=8), #change legend title font size
+        legend.text = element_text(size=8),
+        panel.grid.major.x = element_line( size=.1, color="#000000" ),
+        legend.position="top", 
+        legend.box = "horizontal",
+        axis.title.y=element_blank(),
+        axis.text = element_text(size=7)) +
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 16)) +
+  scale_x_continuous(breaks=c(0,30,60,90), limits = c(0,120))
+
+figS1
+
+ggsave("figS1.png", figS1, width = 26, height=8, units='cm')
 
 #### Figure 7 - Dynamic World capabilities ------------------------------------------------------
 plot(dwLocal_eg1)
