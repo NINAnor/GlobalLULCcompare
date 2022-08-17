@@ -25,7 +25,6 @@ var regionTrain =
           [14.423537573182212, 50.036791295321095],
           [14.423537573182212, 50.04756774103323]]], null, false);
 
-
 // Author: Zander Venter - zander.venter@nina.no
 
 // Workflow in this script:
@@ -33,6 +32,7 @@ var regionTrain =
   // 2. Train a RF model using LUCAS reference data and Dynamic World probability scores as predictors
   // 3. Visualize output an export to Drive
 
+//Define visualisation parameters for LC
 var lcDict = {
   labels: [
     "Build area", //1
@@ -69,6 +69,7 @@ var probabilityBands = [
   'built', 'bare', //'snow_and_ice'
 ];
 
+//function to merge dw categries
 function changeTypology(img){
     var grey = ee.Image(img.select('built').add(img.select('bare'))).rename('grey');
     var tree = ee.Image(img.select('trees').add(img.select('shrub_and_scrub'))).rename('tree');
@@ -76,12 +77,13 @@ function changeTypology(img){
     return grey.addBands(tree).addBands(grass).copyProperties(img, img.propertyNames())
 }
 
-
+// prepare explantory variables- filter to aoi, select 2020 data and for may-august
 var dw = ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
   .filterBounds(regionTrain)
   .filter(ee.Filter.calendarRange(2020,2020,'year'))
   .filter(ee.Filter.calendarRange(5,9,'month'));
 
+// get the mode image (used for comparison)-represents original dw
 var dwLabelMosaic = dw.select('label').mode();
 dwLabelMosaic = dwLabelMosaic.remap({
     from:[0,1,2,3,4,5,6,7,8],
@@ -89,14 +91,16 @@ dwLabelMosaic = dwLabelMosaic.remap({
   });
 
 Map.addLayer(dwLabelMosaic, lcVizParams, 'Dynamic World original', 0);
-
+// apply reclassification (combining dw lc categories) to mean probability values for 2020
 var rgbProbMosaic = ee.Image(changeTypology(dw.select(probabilityBands).mean()));
 
 Map.addLayer(rgbProbMosaic, {min:0, max:0.5}, 'rgbProbMosaic',0)
 
+// get tree layer from reclassified dw image
 var treeCovExagg = rgbProbMosaic.select('tree').unitScale(0,0.2).clamp(0,1)
 Map.addLayer(treeCovExagg, {min:0, max:1}, 'tree cover exaggerated',0)
 
+//prepare reference points (target)- load lucas points, filter to aoi, select lc property names
 // Data from here: https://www.nature.com/articles/s41597-020-00675-z
   // in GEE data catalogue
 var lucas = ee.FeatureCollection("JRC/LUCAS_HARMO/THLOC/V1")
@@ -106,12 +110,14 @@ var lucas = ee.FeatureCollection("JRC/LUCAS_HARMO/THLOC/V1")
 print(lucas.size(), 'lucas size')
 Map.addLayer(lucas.geometry(), {}, 'lucas',0);
 
+//format lc names to strings (will be renamed later)
 lucas = lucas.map(function(ft){
   var lcSimp = ee.String(ft.get('lc1')).slice(0,1)
   return ft.set('lcLab', lcSimp, 'lcNum', lcSimp)
 })
-lucas = lucas.filter(ee.Filter.neq('lcLab', ''));
+lucas = lucas.filter(ee.Filter.neq('lcLab', ''));//remove points with no lc property
 
+// reclassify lucas data lc names
 // Lookup can be found here: https://data.jrc.ec.europa.eu/dataset/f85907ae-d123-471f-a44a-8cca993485a2#dataaccess
 lucas = lucas.remap(
   ["A", "B", "C", "D", "E", "F", "G", "H"], 
@@ -132,11 +138,6 @@ print(bands, 'bands');
 
 
 // Make training data by sampling the image at the points
-var training = modelStack.sampleRegions({
-  collection: lucas,
-  properties: ['lcNum'],
-  scale: 10
-});
 var training = modelStack.reduceRegions({
   collection: lucas,
   reducer: ee.Reducer.mean(),
@@ -144,11 +145,11 @@ var training = modelStack.reduceRegions({
 });
 print(training.limit(10))
 
-// Get a RandomForest classifier and train it.
+// Initialize a RandomForest classifier with 100 decision trees and train it.
 var classifier = ee.Classifier.smileRandomForest(100).train({
-  features: training, 
-  classProperty: 'lcNum', 
-  inputProperties: bands
+  features: training, //collection with response and predictor data
+  classProperty: 'lcNum', //response variable name
+  inputProperties: bands //predictor names
 });
 
 // Classify the train and test image with RandomForest.
@@ -180,3 +181,5 @@ Export.image.toDrive({
   region: geometry,
   crs: 'EPSG:4326'
 })
+
+
