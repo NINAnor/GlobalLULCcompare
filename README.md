@@ -12,13 +12,13 @@ The file paths in the R scripts are relative file paths and should be stable to 
 The workflow is as follows:
 
 - Run the 'DW_global_mosaic_2020.js' file in GEE.
-  - Snapshot of code: https://code.earthengine.google.com/493a3ddcf0d5b1f1863ba3fdd61e2026
+  - Snapshot of code: https://code.earthengine.google.com/93255bce1ef3013451a11ffa9410c5ea
 - *wait for exports tasks to complete running*
 - Run the 'setup.R' file in R and upload the "equal_area_grid.shp" file that results to your GEE asset
 - *wait for Asset import tasks to complete running*
 - Run the 'DW_global_validation.js' in GEE
-  - Snapshot of code: https://code.earthengine.google.com/880dd52f4ef5537cb6142b65e9542816
+  - Snapshot of code: https://code.earthengine.google.com/2b04d897aadff0286493ea9dbac61e1b
 - Run the 'DW_probabilities_explore.js' script in GEE
-  - Snapshot of code: https://code.earthengine.google.com/fa91b84a4d96f1231e903cca39f0f7c0
+  - Snapshot of code: https://code.earthengine.google.com/52b7df1345ee2fa5b90ac4aaba84237b
 *wait for exports tasks to complete running and download from Google Drive into ./DATA/ respository*
 - Run the 'assessment.R' script in R to generate all the manuscript figures.
