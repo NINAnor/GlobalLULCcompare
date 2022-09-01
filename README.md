@@ -1,7 +1,7 @@
 # GlobalLULCcompare
 A comparison of global 10m land use land cover datasets: Google’s Dynamic World (DW), ESA’s World Cover 2020 (WC), Esri’s 2020 Land Cover (Esri) 
 
-**Please refer to our manuscript for details on methods: <link to be inserted>**
+**Please refer to our manuscript for details on methods: https://www.mdpi.com/2072-4292/14/16/4101**
 
 This repository contains scripts to reproduce the findings in our paper. The workflow spans two programming platforms, namely Google Earth Engine (GEE) JavaScript API and RStudio. GEE is used to extract data on global LULC maps and spatial context, while R is used for statistical analyziz and data viz.
 
